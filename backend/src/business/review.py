@@ -22,7 +22,13 @@ def classify_candidate(row, shares, residual, threshold):
 
 def review_sheet(result):
     rows = result["rows"]
+    version = result.get("spectrum_version") or result.get("reference_spectrum_version")
+    version_id = result.get("spectrum_version_id") or result.get("reference_spectrum_version_id")
     return {
+        "spectrum_version": version,
+        "spectrum_version_id": version_id,
+        "reference_spectrum_version": result.get("reference_spectrum_version") or version,
+        "reference_spectrum_version_id": result.get("reference_spectrum_version_id") or version_id,
         "reference_profiles": result["reference_profiles"],
         "bins": {
             decision: [

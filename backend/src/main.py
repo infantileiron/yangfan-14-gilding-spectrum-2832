@@ -12,7 +12,7 @@ from src.config.settings import SEED_DEMO, Session, engine, redis
 from src.middlewares.headers import add_headers
 from src.middlewares.throttle import login_limit
 from src.models.dataset import Dataset
-from src.routes import auth, workspace
+from src.routes import auth, spectra, workspace
 from src.routes.dependencies import current_account
 
 logger = logging.getLogger(__name__)
@@ -33,6 +33,7 @@ app = FastAPI(title=PROFILE["title"], description=PROFILE["subtitle"], lifespan=
 app.middleware("http")(login_limit)
 app.middleware("http")(add_headers)
 app.include_router(auth.router, prefix="/api")
+app.include_router(spectra.router, prefix="/api")
 app.include_router(workspace.router, prefix="/api")
 app.include_router(domain_router, prefix="/api", dependencies=[Depends(current_account)])
 

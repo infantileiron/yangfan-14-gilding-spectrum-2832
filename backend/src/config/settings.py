@@ -12,3 +12,4 @@ JWT_SECRET = os.environ["JWT_SECRET"]
 JWT_ISSUER = os.environ["JWT_ISSUER"]
 ARTIFACTS = Path(os.getenv("ARTIFACTS_DIR", "/artifacts"))
 SEED_DEMO = os.getenv("SEED_DEMO", "false").lower() == "true"
+SEED_SPECTRUM = os.getenv("SEED_SPECTRUM", "true").lower() == "true"

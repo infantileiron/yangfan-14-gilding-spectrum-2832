@@ -78,6 +78,10 @@ API 使用 `http://127.0.0.1:19453`，接口定义为 `/openapi.json`。数据�
 | 导入数据 | `POST /api/datasets` | JSON 包含 `name` 与完整 CSV 字符串 `csv` |
 | 创建计算 | `POST /api/runs` | JSON 包含 `dataset_id`、`label`、`parameter`，返回计算 ID |
 | 取结果 | `GET /api/runs/{run_id}` | 等待 `succeeded` 或 `failed`，完成后附加 `/csv` 下载结果 |
+| 查在用参考谱 | `GET /api/spectrum-versions/active` | 返回当前整套在用谱、版本号和三基底残差峰值 |
+| 提交新参考谱 | `POST /api/spectrum-versions` | 可用 `dataset_id` 取该批次的参照/复核片，或直接传 `reference_profiles` |
+| 查参考谱版本 | `GET /api/spectrum-versions` / `/{version_id}` | 列出版本、生效状态、对比门槛和未生效原因 |
+| 重新生效校验 | `POST /api/spectrum-versions/{version_id}/activate` | 生效前再次与当时在用谱按同一批复核片比较 |
 | 查业务交接建议 | `GET /api/domain/spectrum-review/{run_id}` | 返回项目专用的工位、样本或处置摘要 |
 | 签审 | `POST /api/runs/{run_id}/review` | JSON 包含 `decision`、`samples`、`note` |
 | 下载交接单 | `GET /api/runs/{run_id}/handoff.csv` | 签发后可下载，包含选中样本与交接记录 |
@@ -92,6 +96,16 @@ TOKEN=$(curl -fsS "$API/api/auth/login" -H 'Content-Type: application/json' \
   | python3 -c 'import json,sys; print(json.load(sys.stdin)["token"])')
 curl -fsS "$API/api/datasets" -H "Authorization: Bearer $TOKEN"
 ```
+
+参考谱版本遵守以下口径：
+
+- 首套谱在三种基底上的“单波段绝对残差最大值”都严格低于复测门槛（默认 7.0 个百分点）才生效。
+- 后续候选谱必须与当时在用谱使用同一批独立复核片；三种基底的峰值均未变大（允许相等）才整套替换。
+- 新谱未通过时保留为 `rejected`，在用谱不变，补样计算仍可照常接单。
+- `POST /api/runs` 在接单事务中固定当前在用谱版本；任务重试、后台租约恢复或在用谱随后换版，都继续使用接单时固定的版本。
+- 两个候选同时提交时，版本服务以行锁/进程锁串行完成“取当前在用谱—比较—生效”，后生效者与生效瞬间的在用谱比较。
+- 运行详情和 `result` 均包含 `spectrum_version` 与 `spectrum_version_id`（同时提供 `reference_spectrum_version` 别名）。没有在用版本时，使用不可变数据校验和派生的 `dataset-<checksum>` 标识。
+- 演示种子默认会在首套谱满足门槛时写入 `v1`；自动化隔离环境可设置 `SEED_SPECTRUM=false`，再通过版本接口提交首套谱。
 
 ## 开发与运行
 

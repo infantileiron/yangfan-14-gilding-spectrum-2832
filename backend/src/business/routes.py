@@ -2,11 +2,13 @@ from fastapi import APIRouter, HTTPException
 
 from src.config.settings import Session
 from src.constants.workflow import Stage
+from src.routes.spectra import router as spectrum_router
 from src.services.runs import require
 
 from .review import review_sheet
 
 router = APIRouter(prefix="/domain", tags=["光谱复测"])
+router.include_router(spectrum_router)
 
 
 @router.get("/spectrum-review/{run_id}")

@@ -5,20 +5,23 @@ from sqlalchemy import func, select
 from migrations.bootstrap import migrate
 from src.business.demo import demo_rows
 from src.business.profile import PROFILE
-from src.config.settings import Session, engine
+from src.config.settings import SEED_SPECTRUM, Session, engine
 from src.constants.workflow import Role
 from src.models.account import Account
 from src.models.dataset import Dataset
 from src.services.datasets import save_in
+from src.services.spectrum_versions import ensure_from_dataset
 from src.utils.csv_data import parse_csv, render_csv
 from src.utils.passwords import hash_password
 
 PASSWORD = "Yangfan-demo-2026"
 
 
-def seed():
+def seed(activate_spectrum: bool | None = None):
     columns = PROFILE["columns"]
     rows = parse_csv(render_csv(demo_rows(), [column["key"] for column in columns]), columns)
+    if activate_spectrum is None:
+        activate_spectrum = SEED_SPECTRUM
     with Session.begin() as db:
         for role in Role:
             email = f"{role.value}@demo.local"
@@ -26,10 +29,14 @@ def seed():
                 db.add(Account(email=email, role=role.value, password_hash=hash_password(PASSWORD)))
         db.flush()
         item, created = save_in(db, PROFILE["seed_name"], rows, "seed", audit=False)
+        spectrum = None
+        if activate_spectrum:
+            spectrum, _ = ensure_from_dataset(db, item, actor="seed")
         return {
             "accounts": db.scalar(select(func.count()).select_from(Account)),
             "datasets": db.scalar(select(func.count()).select_from(Dataset)),
             "rows": len(item.rows), "checksum": item.checksum, "created": created,
+            "spectrum_version": spectrum.version if spectrum is not None else None,
         }
 
 

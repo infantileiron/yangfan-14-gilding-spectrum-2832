@@ -12,6 +12,7 @@ from src.constants.workflow import Stage
 from src.models.base import new_id, utcnow
 from src.models.dataset import Dataset
 from src.models.run import Run
+from src.models.spectrum import SpectrumVersion
 from src.services.audit import record
 from src.services.exports import result_keys
 from src.utils.csv_data import render_csv
@@ -61,15 +62,55 @@ def verify_result(result):
     return result
 
 
+def load_pinned_spectrum(run_id):
+    """Read the immutable version chosen when the order was accepted."""
+    with Session() as db:
+        run = db.get(Run, run_id)
+        if run is None:
+            return None, None, None
+        if not run.spectrum_version_id:
+            return None, run.spectrum_version or "dataset-derived", None
+        version = db.get(SpectrumVersion, run.spectrum_version_id)
+        if version is None:
+            raise ValueError("接单时选定的参考谱版本已不存在。")
+        return (
+            {"state": version.state, "id": version.id, "version": version.version},
+            run.spectrum_version or version.version,
+            run.spectrum_version_id,
+        )
+
+
 def execute(job):
-    run_id, lease, parameter, rows = job
+    # claim() keeps its historical four-tuple contract; richer tuples are
+    # accepted for direct callers that already loaded the pinned version.
+    if len(job) == 4:
+        run_id, lease, parameter, rows = job
+        spectrum_state = None
+        pinned_label = None
+        pinned_id = None
+        load_pin_from_database = True
+    else:
+        run_id, lease, parameter, rows = job[:4]
+        spectrum_state = job[4] if len(job) > 4 else None
+        pinned_label = job[5] if len(job) > 5 else None
+        pinned_id = job[6] if len(job) > 6 else None
+        load_pin_from_database = False
     artifact = None
     result = None
     error = None
     try:
-        result = verify_result(analyze(rows, parameter))
+        if load_pin_from_database:
+            spectrum_state, pinned_label, pinned_id = load_pinned_spectrum(run_id)
+        result = verify_result(analyze(
+            rows,
+            parameter,
+            spectrum=spectrum_state,
+            spectrum_version=pinned_label or (spectrum_state or {}).get("version"),
+            spectrum_version_id=pinned_id or (spectrum_state or {}).get("id"),
+        ))
         artifact = f"{run_id}-{lease}.csv"
         path = ARTIFACTS / artifact
+        ARTIFACTS.mkdir(parents=True, exist_ok=True)
         temporary = path.with_suffix(".tmp")
         temporary.write_text("\ufeff" + render_csv(result["rows"], result_keys(), protect=True), encoding="utf-8")
         temporary.replace(path)

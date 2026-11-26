@@ -11,6 +11,10 @@ class Run(Base):
     __tablename__ = "runs"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     dataset_id: Mapped[str] = mapped_column(ForeignKey("datasets.id"), index=True)
+    # Soft reference: spectrum versions are immutable and may be bootstrapped
+    # independently; avoid making older model-only test metadata depend on it.
+    spectrum_version_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    spectrum_version: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)
     label: Mapped[str] = mapped_column(String(100))
     parameter: Mapped[float]
     actor: Mapped[str] = mapped_column(String(160))

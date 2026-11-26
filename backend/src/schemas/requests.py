@@ -24,6 +24,10 @@ class RunRequest(Request):
     dataset_id: Annotated[str, StringConstraints(min_length=36, max_length=36)]
     label: Name
     parameter: FiniteFloat
+    spectrum_version_id: Annotated[str, StringConstraints(min_length=1, max_length=36)] | None = None
+    spectrum_version: str | int | None = None
+    reference_spectrum_version: str | int | None = None
+    reference_spectrum_version_id: Annotated[str, StringConstraints(min_length=1, max_length=36)] | None = None
 
 
 class ReviewRequest(Request):

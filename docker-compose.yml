@@ -28,6 +28,7 @@ services:
     environment:
       <<: *app
       SEED_DEMO: ${SEED_DEMO:-true}
+      SEED_SPECTRUM: ${SEED_SPECTRUM:-true}
     volumes:
       - artifacts:/artifacts
     depends_on:
