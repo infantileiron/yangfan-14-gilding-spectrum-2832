@@ -1,0 +1,95 @@
+name: yangfan-14-gilding-spectrum
+x-app: &app
+  DATABASE_URL: mysql+pymysql://studio:${DB_PASSWORD}@db:3306/workbench
+  REDIS_URL: redis://redis:6379/0
+  JWT_SECRET: ${JWT_SECRET:?Copy .env.example to .env and set JWT_SECRET}
+  ARTIFACTS_DIR: /artifacts
+  JWT_ISSUER: yangfan-14-gilding-spectrum
+services:
+  gateway:
+    container_name: ${COMPOSE_PROJECT_NAME:-yangfan-14-gilding-spectrum}-gateway
+    image: nginx:1.27-alpine
+    ports:
+      - "127.0.0.1:${BACKEND_PORT:-19453}:8080"
+    volumes:
+      - ./gateway/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD-SHELL, "wget -qO /dev/null http://127.0.0.1:8080/healthz"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  backend:
+    container_name: ${COMPOSE_PROJECT_NAME:-yangfan-14-gilding-spectrum}-backend
+    build: ./backend
+    image: yangfan-14-gilding-spectrum-app:local
+    environment:
+      <<: *app
+      SEED_DEMO: ${SEED_DEMO:-true}
+    volumes:
+      - artifacts:/artifacts
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:8000/healthz', timeout=2)"]
+      interval: 3s
+      timeout: 3s
+      retries: 25
+  worker:
+    container_name: ${COMPOSE_PROJECT_NAME:-yangfan-14-gilding-spectrum}-worker
+    image: yangfan-14-gilding-spectrum-app:local
+    pull_policy: never
+    command: ["python", "-m", "src.worker"]
+    environment: *app
+    volumes:
+      - artifacts:/artifacts
+    depends_on:
+      backend:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "from pathlib import Path; from time import time; raise SystemExit(time() - Path('/tmp/worker-heartbeat').stat().st_mtime >= 90)"]
+      interval: 3s
+      timeout: 3s
+      retries: 25
+  db:
+    container_name: ${COMPOSE_PROJECT_NAME:-yangfan-14-gilding-spectrum}-db
+    image: mysql:8.0
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
+    environment:
+      MYSQL_DATABASE: workbench
+      MYSQL_USER: studio
+      MYSQL_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?Set DB_ROOT_PASSWORD}
+    ports:
+      - "127.0.0.1:${DB_PORT:-17953}:3306"
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      test: [CMD-SHELL, 'mysql -h127.0.0.1 -ustudio -p"$$MYSQL_PASSWORD" -Dworkbench -Nse "SELECT 1" >/dev/null']
+      interval: 3s
+      timeout: 4s
+      retries: 40
+  redis:
+    container_name: ${COMPOSE_PROJECT_NAME:-yangfan-14-gilding-spectrum}-redis
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+volumes:
+  db-data:
+  redis-data:
+  artifacts:

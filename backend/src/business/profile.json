@@ -1,0 +1,46 @@
+{
+  "title": "砚光修复·金箔补样反射分解",
+  "subtitle": "从比色仪的六波段测量拆出补样的参考谱比例，排定复测路线。",
+  "team": "砚光文保装饰修复小组，5 名修复员和 2 名检测员，负责非文物展示件的模拟打样。",
+  "workflow": "检测员把六波段反射率留在测量表里。修复员逐份对照新制打样片和旧基底，按目视综合色差安排复测。",
+  "pain_points": ["同样的平均反光可能来自完全不同的波段变化。", "没有统一的参考谱比例，多个检测员的复测理由难复现。", "明显偏离参考域的样片容易被当成普通配比差异。"],
+  "upstream": "比色仪导出来自参照片、独立复核片和待验补样的六波段反射率。",
+  "downstream": "复核员签发的补样清单发给复测台或二次试贴台，参考谱交给检测员复核。",
+  "labels": {"datasets": "光谱底稿", "runs": "反射分解", "results": "复测分流", "handoff": "修复台交接", "input": "光谱批次", "action": "复测路线"},
+  "algorithm": "三分量非负矩阵分解（NMF）",
+  "method": "用 6 个波段的反射率百分数拟合 3 个非负参考谱，固定初始化和随机种子。只用参照片拟合，独立复核片计算重构误差。将参考谱按谱质心从短波到长波编号。以参考谱的 L1 范数调整系数并归一，得到各补样的相对光谱贡献比例。按单波段绝对残差的最大值与复测门槛分流；比例不等同于材料质量比。",
+  "seed_name": "砚光_金箔补样六波段_2026-11-25.csv",
+  "scenario": ["08:40 检测员交出砚光_金箔补样六波段_2026-11-25.csv。", "08:55 核对 72 片参照、24 片独立复核、8 片待验补样。", "09:10 复核三种参考谱的波段中心。", "09:20 以 7.0 个反射率百分点作为单波段复测门槛。", "09:30 样片 YG-P02 因 560 nm 残差偏高进入全波段复测。", "09:40 YG-P01 随参照谱清单提交二次试贴。", "10:00 复核员签发当天首批补样清单。"],
+  "columns": [
+    {"key": "sample_id", "label": "样片编号", "type": "text"},
+    {"key": "split", "label": "样片分组", "type": "text", "choices": ["参照", "复核", "待验"]},
+    {"key": "surface", "label": "试贴基底", "type": "text", "choices": ["封闭基底", "仿旧基底", "过渡基底"]},
+    {"key": "r440", "label": "440 nm 反射率 %", "type": "number", "min": 0, "max": 100},
+    {"key": "r500", "label": "500 nm 反射率 %", "type": "number", "min": 0, "max": 100},
+    {"key": "r560", "label": "560 nm 反射率 %", "type": "number", "min": 0, "max": 100},
+    {"key": "r620", "label": "620 nm 反射率 %", "type": "number", "min": 0, "max": 100},
+    {"key": "r680", "label": "680 nm 反射率 %", "type": "number", "min": 0, "max": 100},
+    {"key": "r740", "label": "740 nm 反射率 %", "type": "number", "min": 0, "max": 100}
+  ],
+  "parameter": {"key": "recheck_pp", "label": "单波段复测门槛（百分点）", "default": 7.0, "min": 2.0, "max": 25.0, "step": 0.5, "description": "最大波段绝对重构残差达到此值即转全波段复测。"},
+  "result_columns": [
+    {"key": "sample_id", "label": "样片编号"},
+    {"key": "surface", "label": "试贴基底"},
+    {"key": "spectrum_1_pct", "label": "参考谱 1 比例 %"},
+    {"key": "spectrum_2_pct", "label": "参考谱 2 比例 %"},
+    {"key": "spectrum_3_pct", "label": "参考谱 3 比例 %"},
+    {"key": "worst_band_nm", "label": "最大残差波段 nm"},
+    {"key": "residual_pp", "label": "最大残差 百分点"},
+    {"key": "decision", "label": "复测路线"}
+  ],
+  "chart": {"key": "residual_pp", "label": "各样片最大重构残差（百分点）"},
+  "verification": {
+    "path": "/api/domain/spectrum-review/{run_id}",
+    "assertions": [
+      {"sample_id": "YG-P01", "key": "decision", "value": "二次试贴"},
+      {"sample_id": "YG-P02", "key": "decision", "value": "全波段复测"},
+      {"sample_id": "YG-P02", "key": "residual_pp", "min": 7.0},
+      {"sample_id": "YG-P01", "key": "spectrum_1_pct", "min": 40.0}
+    ]
+  }
+}
